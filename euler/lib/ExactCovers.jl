@@ -1,3 +1,5 @@
+v"0.3.2" <= VERSION < v"0.4.0-" || error("Requires stable Julia version.")
+
 # This implements a CoverSet type along with methods to find one or enumerate
 # all exact covers. To use it, create an instance and then push subsets into it:
 #
@@ -10,7 +12,7 @@
 #     # Find first exact cover, or ():
 #     cover = find_exact_cover(set)
 #     # ^ cover is a collection of subset keys.
-#     
+#
 #     # Alternatively, iterate over all covers:
 #     for cover in exact_cover_producer(set)
 #       println(cover)
@@ -19,6 +21,9 @@
 # Both operations may change the CoverSet during operation, but will restore its
 # original state before returning/finishing. (But when using
 # exact_cover_producer, the set may be in a modified state during iteration.)
+#
+# There are also corresponding functions exact_cover_exists and
+# exact_cover_count that do not produce the actual covers, but only count them.
 #
 # The implementation is Knuth's "Algorithm X" with Dancing Links (DLX). See:
 #
@@ -35,8 +40,16 @@
 #
 module ExactCovers
 
-export CoverSet, exact_cover_producer, find_exact_cover, cover_element!,
-  uncover_element!, cover_subset!, uncover_subset!
+export
+  CoverSet,
+  exact_cover_exists,
+  exact_cover_count,
+  exact_cover_producer,
+  find_exact_cover,
+  cover_element!,
+  uncover_element!,
+  cover_subset!,
+  uncover_subset!
 
 
 # This defines the Node type, of which there are three specializations: The root
@@ -96,7 +109,7 @@ function append_down!(position::Node, node::Node)
   node.up = position
   node.down = position.down
   reattach_vertically!(node)
-  
+
   node
 end
 
@@ -223,9 +236,10 @@ end
 
 
 # The following functions implement the DLX algorithm from the referenced paper.
-# produce_exact_covers! is the main routine, and is slightly extended to allow
-# aborting the search after the first hit. It is run in a Task and will simply
-# produce the found exact covers.
+# walk_exact_covers! is the main routine, and is slightly extended to allow
+# aborting the search after the first hit as well as counting the found exact
+# covers. If the actual covers are relevant (as opposed to simply the count), it
+# is run in a Task and will produce the found exact covers.
 #
 # cover_element! and uncover_element! implement the cover- and
 # uncover-operations from the paper. cover_subset! and uncover_subset! are not
@@ -287,34 +301,41 @@ end
 
 is_completely_covered(set::CoverSet) = set.right == set
 
-function produce_exact_covers!(
+# Returns the number of exact covers.
+function walk_exact_covers!(
   set::CoverSet,
   stack::Vector{Cell};
-  only_first = false
+  only_first = false,
+  produce_traces = false
 )
   if is_completely_covered(set)
-    produce(copy(stack))
-    return true
+    produce_traces && produce(copy(stack))
+    return 1
   end
 
-  found = false
+  found = 0
   element_node = find_minimal_element_node(set)
 
   cover_element!(element_node)
   for element_cell in cells(element_node)
-    push!(stack, element_cell)
+    produce_traces && push!(stack, element_cell)
     for cell in other_cells_in_subset(element_cell)
       cover_element!(cell.payload.element_node)
     end
 
-    found = produce_exact_covers!(set, stack, only_first = only_first)
+    found += walk_exact_covers!(
+      set,
+      stack,
+      only_first = only_first,
+      produce_traces = produce_traces
+    )
 
     for cell in other_cells_in_subset_reverse(element_cell)
       uncover_element!(cell.payload.element_node)
     end
-    pop!(stack)
+    produce_traces && pop!(stack)
 
-    if only_first && found
+    if only_first && found > 0
       break
     end
   end
@@ -323,8 +344,22 @@ function produce_exact_covers!(
   found
 end
 
+exact_cover_count(set::CoverSet) = walk_exact_covers!(set, Cell[])
+
+exact_cover_exists(set::CoverSet) = walk_exact_covers!(
+  set,
+  Cell[],
+  only_first = true
+) |> bool
+
 exact_cover_producer(set::CoverSet; only_first = false) = @task let
-  covers = @task produce_exact_covers!(set, Cell[], only_first = only_first)
+  covers = @task walk_exact_covers!(
+    set,
+    Cell[],
+    only_first = only_first,
+    produce_traces = true
+  )
+
   for cover in covers
     produce(map(cell -> cell.payload.subset_key, cover))
   end
