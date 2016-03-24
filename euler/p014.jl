@@ -12,7 +12,7 @@ function collatz!(n, cache)
 end
 
 let
-  collatz_cache = [1 => 1]
+  collatz_cache = Dict(1 => 1)
   max_n, max_length = 0, 0
   for n = 1:999999
     length = collatz!(n, collatz_cache)

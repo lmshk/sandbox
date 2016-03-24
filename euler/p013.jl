@@ -1,5 +1,8 @@
-(
-  Base.mapfoldl(BigInt, push!, BigInt[], open("p013_data.txt") |> eachline) |>
+"p013_data.txt" |>
+  open |>
+  eachline |>
+  line -> map(number -> parse(BigInt, number), line) |>
   sum |>
-  string
-)[1:10] |> println
+  string |>
+  result -> result[1:10] |>
+  println

@@ -1,9 +1,15 @@
+const filename = "p067_data.txt"
+
 let
-  data = map(
-    x -> map(int, split(x)),
-    open("p067_data.txt") |> eachline
-  )
-  
+  # Unfortunately we need the collects: the first one, because
+  # [[1]] == [1] at the moment, and the second one because
+  # collect can not handle the unsized iterable returned from
+  # eachline. Both will probably change in the future.
+  data = [
+    collect(parse(Int, number) for number in split(line))
+      for line in filename |> open |> eachline |> collect
+  ]
+
   # Dynamic programming
   maxima = data[length(data)]
   for i = (length(data) - 1):-1:1, j = 1:i

@@ -1,83 +1,97 @@
-# Outline:
-#   1. Build general sudoku CoverSet (reduce sudoku to exact cover problem) once
-#   2. For each sudoku on input:
-#     a. parse
-#     b. cover givens in CoverSet
-#     c. find exact cover
-#     d. make corresponding placements into a copy of the sudoku
-#     e. uncover givens in reverse order to restore general sudoku CoverSet
+# Solve Project Euler problem 96 (sudoku) to test ExactCovers.
 #
-# The trick here is to build the sudoku CoverSet (matrix) only once and restore
-# it after each use, as building it in the first place is an expensive
-# operation due to the many allocations. (This could probably be tuned further
-# by pooling the nodes in CoverSet.)
+# The idea here is to reduce sudoku to the exact cover problem and then use
+# ExactCovers to solve that. Because we need to solve multiple sudokus, we
+# costruct a general sudoku matrix and then, for each sudoku,
+# 1. cover the parts of the matrix that correspond to givens,
+# 2. find an exact cover for the partially covered matrix, and finally
+# 3. uncover in reverse order.
+# This is more efficient (and also easier to write down) than creating a
+# specialized matrix for each sudoku.
 #
-# Reusing a general sudoku CoverSet instead of building a specialized one for
-# each sudoku cuts the running time from ~44s to ~7s on my machine, even though
-# the individual CoverSets would have been smaller.
+# Each row (subset) in the sudoku matrix corresponds to placing a number into a
+# square. The columns (elements) correspond to the individual constraints that
+# each placement fulfills. These are:
+# * The corresponding square is filled.
+# * The corresponding row has the placed number.
+# * The corresponding column has the placed number.
+# * The corresponding box (3x3-subgrid) has the placed number.
+#
+# Because the sudoku rules dictate that each of these constraints must be
+# satisfied exactly once, an exact cover for that matrix is a solution to
+# sudoku. Preselecting (covering) rows (subsets) now makes sure that we are
+# actually solving the given sudoku instance, instead of an empty grid.
 
-require("lib/ExactCovers.jl")
 using ExactCovers
 
-box_for(row, column) = (div(row - 1, 3) + 1, div(column - 1, 3) + 1)
+"Creates the `CoverSet` that represents an empty sudoku grid."
+function make_sudoku_matrix()
+  box_for(row, column) = (div(row - 1, 3) + 1, div(column - 1, 3) + 1)
 
-function constraints_for(row, column, number)
-  box = box_for(row, column)
-
-  [
+  constraints_for(row, column, number) = Set(Any[
     (:square_is_filled, row, column),
     (:row_has, row, number),
     (:column_has, column, number),
     (:box_has, box_for(row, column), number)
-  ]
+  ])
+
+  CoverMatrix(Dict([
+    (row, column, number) => constraints_for(row, column, number) for
+      row in 1:9,
+      column in 1:9,
+      number in 1:9
+  ]))
 end
 
-function make_options()
-  options = CoverSet()
-
-  for row = 1:9, column = 1:9, number = 1:9
-    option = (row, column, number)
-    push!(options, constraints_for(option...), key = option)
-  end
-
-  options
-end
-
-function cover_givens!(sudoku, options)
-  for row = 1:9, column = 1:9
+"""
+Preselects the given placements from `sudoku` in `matrix`.
+"""
+function cover_givens!(sudoku, matrix)
+  for row in 1:9, column in 1:9
     if sudoku[row, column] > 0
-      cover_subset!(options, (row, column, sudoku[row, column]))
+      cover_subset!(matrix, (row, column, sudoku[row, column]))
     end
   end
 end
 
-function uncover_givens!(sudoku, options)
-  for row = 9:-1:1, column = 9:-1:1
+"""
+Reverses the preselection from `sudoku`, so that `matrix` is restored to a
+pristine sudoku matrix.
+"""
+function uncover_givens!(sudoku, matrix)
+  for row in 9:-1:1, column in 9:-1:1
     if sudoku[row, column] > 0
-      uncover_subset!(options, (row, column, sudoku[row, column]))
+      uncover_subset!(matrix, (row, column, sudoku[row, column]))
     end
   end
 end
 
-function solve(sudoku, options)
+"""
+Solves `sudoku`, assuming `matrix` is a sudoku matrix representing an empty
+grid. `matrix` will be restored to that state when the call returns.
+"""
+function solve(sudoku, matrix)
   result = copy(sudoku)
-  cover_givens!(sudoku, options)
-  for entry in find_exact_cover(options)
+  cover_givens!(sudoku, matrix)
+  for entry in find_exact_cover(matrix)
     row, column, number = entry
     result[row, column] = number
   end
-  uncover_givens!(sudoku, options)
+  uncover_givens!(sudoku, matrix)
   
   result
 end
 
-sudoku_producer(filename) = @task let
-  file = open(filename)
+"""
+Reads the source file containing the sudoku instances to solve.
+"""
+sudoku_producer() = @task let
+  file = open("p096_sudoku.txt")
   while !eof(file)
     readline(file)
     sudoku = Array(Int8, 9, 9)
-    for row = 1:9
-        sudoku[row, :] =  map(c -> c - '0', readbytes(file, 9))
+    for row in 1:9
+        sudoku[row, :] = [c - Int8('0') for c in read(file, Int8, 9)]
         readline(file)
     end
 
@@ -85,12 +99,17 @@ sudoku_producer(filename) = @task let
   end
 end
 
+# Actually solve Project Euler problem 96. This means solving the sudokus,
+# extracting the first three boxes of each, interpreting them as 3-digit
+# numbers and adding them up.
 let
   result = 0
-  options = make_options()
-  for sudoku in sudoku_producer("p096_sudoku.txt")
-    sudoku = solve(sudoku, options)
+
+  matrix = make_sudoku_matrix()
+  for sudoku in sudoku_producer()
+    sudoku = solve(sudoku, matrix)
     result += 100sudoku[1, 1] + 10sudoku[1, 2] + sudoku[1, 3]
   end
+
   println(result)
 end

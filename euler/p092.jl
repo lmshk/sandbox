@@ -7,7 +7,7 @@ function iterate(n::Int)
   return result
 end
 
-const cache = [1 => false, 89 => true]
+const cache = Dict(1 => false, 89 => true)
 function eightynine(n::Int)
   n = iterate(n)
   if !haskey(cache, n)

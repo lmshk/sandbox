@@ -1,10 +1,10 @@
-const Node = (Int, Int)
+const Node = Tuple{Int, Int}
 
 function search(values, starts, goals, neighbors, h)
   # Vanilla A*
   closed = Set{Node}()
-  optima = [start => values[start...] for start in starts]
-  frontier = Collections.PriorityQueue{Node, Int}()
+  optima = Dict(start => values[start...] for start in starts)
+  frontier = Collections.PriorityQueue(Node, Int)
   for start in starts
     frontier[start] = optima[start] + h(start)
   end

@@ -1,4 +1,4 @@
-const letters = [
+const letters = Dict(
   0 => 0, # <- to simplify the code later on
   1 => 3,
   2 => 3,
@@ -28,7 +28,7 @@ const letters = [
   80 => 6,
   90 => 6,
   1000 => 11
-]
+)
 
 const hundred = 7
 const and = 3

@@ -1,6 +1,6 @@
 let
   n = 4
-  data = readdlm(open("p011_data.txt"), Uint8)
+  data = readdlm(open("p011_data.txt"), UInt8)
 
   products = [
     (x, y) -> prod(data[x:(x + n - 1), y]),

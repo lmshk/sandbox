@@ -17,4 +17,4 @@ function is_amicable(n)
   return m != n == divisor_sum(m)
 end
 
-sum(n -> int(is_amicable(n)) * n, 1:9999) |> println
+sum(n -> Int(is_amicable(n)) * n, 1:9999) |> println

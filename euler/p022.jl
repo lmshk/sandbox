@@ -1,3 +1,5 @@
+const filename = "p022_names.txt"
+
 value(name) = sum(c -> c - ('A' - 1), name)
 
 function score(entry)
@@ -6,7 +8,7 @@ function score(entry)
 end
 
 let
-  data = vec(readdlm(open("p022_names.txt"), ',', String))
+  data = split(filename |> open |> readstring, ",")
   sort!(data)
   result = sum(score, enumerate(data))
   println(result)

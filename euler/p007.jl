@@ -1,4 +1,4 @@
-prime_bound(n) = n <= 5 ? 11 : iceil(n * (log(n) + log(log(n))))
+prime_bound(n) = n <= 5 ? 11 : ceil(Integer, n * (log(n) + log(log(n))))
 
 function prime(n)
   # Sieve of Erastothenes

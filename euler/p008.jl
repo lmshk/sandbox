@@ -1,6 +1,6 @@
 function read_input(filename)
   data = Int8[]
-  for c in open(filename) |> readall
+  for c in open(filename) |> readstring
     '0' <= c <= '9' && push!(data, c - '0')
   end
 
